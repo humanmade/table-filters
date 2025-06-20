@@ -1,0 +1,24 @@
+.wp-block-table__filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--wp--style--block-gap, 1rem);
+	margin-bottom: var(--wp--preset--spacing--40, 1rem);
+}
+
+.wp-block-table__filter {
+	flex: 0 1 440px;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--wp--preset--spacing--20, 0.5rem);
+}
+
+.wp-block-table__filter label {
+	margin: 0;
+	padding: 0;
+}
+
+.wp-block-table__filter select {
+	width: 100%;
+}
