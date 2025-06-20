@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Table Filters
  * Description:       Filter dropdown support for the core table block.
- * Version:           0.1.1
+ * Version:           0.1.2
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Human Made Limited
