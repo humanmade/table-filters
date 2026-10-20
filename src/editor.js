@@ -1,10 +1,36 @@
 import { BlockControls } from '@wordpress/block-editor';
 import { ToolbarGroup, DropdownMenu } from '@wordpress/components';
 import { createHigherOrderComponent } from '@wordpress/compose';
-import { createRoot, Fragment, useMemo, useEffect } from '@wordpress/element';
+import { createPortal, Fragment, useMemo, useEffect, useState } from '@wordpress/element';
 import { addFilter } from '@wordpress/hooks';
 import { __ } from '@wordpress/i18n';
 import { funnel, seen, unseen } from '@wordpress/icons';
+
+/**
+ * Find a block's element in the editor.
+ *
+ * The post editor may render blocks in an iframe, which WordPress 7.1 always
+ * does, so the top-level document is not the only place to look.
+ *
+ * @param {string} clientId Block client ID.
+ * @returns {?HTMLElement} The block's element, if it has rendered.
+ */
+function findBlockElement( clientId ) {
+	const id = `block-${ clientId }`;
+	const element = document.getElementById( id );
+	if ( element ) {
+		return element;
+	}
+
+	for ( const iframe of document.querySelectorAll( 'iframe[name="editor-canvas"]' ) ) {
+		const found = iframe.contentDocument?.getElementById( id );
+		if ( found ) {
+			return found;
+		}
+	}
+
+	return null;
+}
 
 const withTableFilters = createHigherOrderComponent( ( BlockEdit ) => ( props ) => {
 	if ( props.name !== 'core/table' ) {
@@ -39,40 +65,31 @@ const withTableFilters = createHigherOrderComponent( ( BlockEdit ) => ( props ) 
 		setAttributes( { filters: newFilters } );
 	};
 
-	const FiltersElement = useMemo( () => {
-		if ( filters.length === 0 ) {
-			return () => null;
-		}
-		return () => (
-			<Fragment>
-				{ filters.map( idx => (
-					<div className="wp-block-table__filter" inert="true">
-						<label htmlFor={ `table-filter-${ idx }` }>{ columnHeaders[ idx ] || `Column ${ idx + 1 }` }</label>
-						<select name={ `table-filter-${ idx }` }><option>{ __( 'All', 'table-filters' ) }</option></select>
-					</div>
-				) ) }
-			</Fragment>
-		);
-	}, [ filters, columnHeaders ] );
+	const hasFilters = filters.length > 0;
+	const [ filtersWrapper, setFiltersWrapper ] = useState( null );
 
-	// Inject the filters.
+	// Add a wrapper for the filters preview where the front end renders them,
+	// as the first child of the block's figure.
 	useEffect( () => {
-		const tableBlock = document.querySelector( `#block-${ props.clientId }` );
-		const filtersWrapper = tableBlock.querySelector( '.wp-block-table__filters' ) || document.createElement( 'div' );
-		filtersWrapper.className = 'wp-block-table__filters';
-
-		if ( tableBlock && filters.length === 0 && tableBlock.querySelector( '.wp-block-table__filters' ) ) {
-			filtersWrapper.remove();
+		if ( ! hasFilters ) {
 			return;
 		}
 
-		if ( tableBlock && ! tableBlock.querySelector( '.wp-block-table__filters' ) ) {
-			tableBlock.prepend( filtersWrapper );
+		const tableBlock = findBlockElement( props.clientId );
+		if ( ! tableBlock ) {
+			return;
 		}
 
-		const root = createRoot( filtersWrapper );
-		root.render( <FiltersElement /> );
-	}, [ props.clientId, filters.length, FiltersElement ] );
+		const wrapper = tableBlock.ownerDocument.createElement( 'div' );
+		wrapper.className = 'wp-block-table__filters';
+		tableBlock.prepend( wrapper );
+		setFiltersWrapper( wrapper );
+
+		return () => {
+			wrapper.remove();
+			setFiltersWrapper( null );
+		};
+	}, [ props.clientId, hasFilters ] );
 
 	// Update the filtersData.
 	useEffect( () => {
@@ -116,6 +133,15 @@ const withTableFilters = createHigherOrderComponent( ( BlockEdit ) => ( props ) 
 				</ToolbarGroup>
 			</BlockControls>
 			<BlockEdit { ...props } />
+			{ hasFilters && filtersWrapper && createPortal(
+				filters.map( idx => (
+					<div className="wp-block-table__filter" inert="true" key={ idx }>
+						<label htmlFor={ `table-filter-${ idx }` }>{ columnHeaders[ idx ] || `Column ${ idx + 1 }` }</label>
+						<select name={ `table-filter-${ idx }` }><option>{ __( 'All', 'table-filters' ) }</option></select>
+					</div>
+				) ),
+				filtersWrapper
+			) }
 		</Fragment>
 	);
 }, 'withTableFilters' );
